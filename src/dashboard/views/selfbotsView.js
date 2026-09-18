@@ -11,8 +11,7 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-function renderSelfbotsPage() {
-  const selfbots = db.getSelfbots();
+function renderSelfbotsPage(selfbots = db.getSelfbots()) {
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -47,7 +46,7 @@ function renderSelfbotsPage() {
             <thead>
               <tr class="bg-[#0a0b10]/80 text-gray-400 uppercase text-[11px] font-bold border-b border-white/10 tracking-wider">
                 <th class="p-4 px-5">Account Display Name</th>
-                <th class="p-4 px-5">Owner User ID</th>
+                <th class="p-4 px-5">Owner</th>
                 <th class="p-4 px-5">Assigned Thread ID</th>
                 <th class="p-4 px-5">Masked Token</th>
                 <th class="p-4 px-5">Last Updated</th>
@@ -60,7 +59,7 @@ function renderSelfbotsPage() {
                 return `
                 <tr class="hover:bg-white/[0.02] transition-colors">
                   <td class="p-4 px-5"><strong class="text-white text-sm font-bold">${escapeHtml(sb.displayName || 'Unknown Account')}</strong></td>
-                  <td class="p-4 px-5"><code class="font-mono bg-white/5 border border-white/10 text-gray-200 px-2 py-1 rounded text-[11px]">${escapeHtml(sb.userId || 'N/A')}</code></td>
+                  <td class="p-4 px-5"><strong class="text-white text-sm font-bold">${escapeHtml(sb.ownerUsername || 'Unknown Owner')}</strong></td>
                   <td class="p-4 px-5"><code class="font-mono bg-white/5 border border-white/10 text-gray-200 px-2 py-1 rounded text-[11px]">${escapeHtml(sb.threadId ? '#' + sb.threadId : 'N/A')}</code></td>
                   <td class="p-4 px-5"><code class="font-mono bg-white/5 border border-white/10 text-gray-200 px-2 py-1 rounded text-[11px]">${escapeHtml(maskedToken)}</code></td>
                   <td class="p-4 px-5 text-gray-400 text-xs font-medium">${formattedDate}</td>
@@ -93,7 +92,7 @@ function renderSelfbotsPage() {
               return \`
               <tr class="hover:bg-white/[0.02] transition-colors">
                 <td class="p-4 px-5"><strong class="text-white text-sm font-bold">\${sb.displayName || 'Unknown Account'}</strong></td>
-                <td class="p-4 px-5"><code class="font-mono bg-white/5 border border-white/10 text-gray-200 px-2 py-1 rounded text-[11px]">\${sb.userId || 'N/A'}</code></td>
+                <td class="p-4 px-5"><strong class="text-white text-sm font-bold">\${sb.ownerUsername || 'Unknown Owner'}</strong></td>
                 <td class="p-4 px-5"><code class="font-mono bg-white/5 border border-white/10 text-gray-200 px-2 py-1 rounded text-[11px]">\${sb.threadId ? '#' + sb.threadId : 'N/A'}</code></td>
                 <td class="p-4 px-5"><code class="font-mono bg-white/5 border border-white/10 text-gray-200 px-2 py-1 rounded text-[11px]">\${maskedToken}</code></td>
                 <td class="p-4 px-5 text-gray-400 text-xs font-medium">\${formattedDate}</td>
@@ -105,7 +104,7 @@ function renderSelfbotsPage() {
               <thead>
                 <tr class="bg-[#0a0b10]/80 text-gray-400 uppercase text-[11px] font-bold border-b border-white/10 tracking-wider">
                   <th class="p-4 px-5">Account Display Name</th>
-                  <th class="p-4 px-5">Owner User ID</th>
+                  <th class="p-4 px-5">Owner</th>
                   <th class="p-4 px-5">Assigned Thread ID</th>
                   <th class="p-4 px-5">Masked Token</th>
                   <th class="p-4 px-5">Last Updated</th>

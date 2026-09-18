@@ -12,7 +12,14 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-function formatLogMessage(rawMessage) {
+function getSearchableLogMessage(rawMessage, selfbotTokenMap = {}) {
+  const message = String(rawMessage ?? '');
+  const tokenMatch = message.match(/\[SELFBOT(?:\s+[A-Z0-9_\s-]+)?\]\s+Token(?:\s+|:\s*)([A-Z0-9]+)/i);
+  const username = tokenMatch ? selfbotTokenMap[tokenMatch[1]] : null;
+  return username ? `${message} ${username}` : message;
+}
+
+function formatLogMessage(rawMessage, selfbotTokenMap = {}) {
   let text = escapeHtml(rawMessage);
 
   // Replace URLs first with placeholders
@@ -44,14 +51,21 @@ function formatLogMessage(rawMessage) {
     return 'background-color: #059669; color: #ffffff; border: 1px solid rgba(110, 231, 183, 0.4);';
   }
 
-  // 1. Convert Selfbot logs with Module + Username into dynamic solid badge: [USERNAME | MODULE]
+  // 1. Resolve token-only selfbot logs to the saved account display name.
+  text = text.replace(/\[SELFBOT(?:\s+([A-Z0-9_\s-]+))?\]\s+Token(?:\s+|:\s*)([A-Z0-9]+)/gi, (match, moduleName, tokenPrefix) => {
+    const mod = moduleName ? moduleName.trim().replace(/-/g, ' ') : 'SELFBOT';
+    const username = selfbotTokenMap[tokenPrefix] || 'UNKNOWN SELFBOT';
+    return addBadge(`[${username} | ${mod}]`, getModuleColorStyle(mod));
+  });
+
+  // 2. Convert Selfbot logs with Module + Username into dynamic solid badge: [USERNAME | MODULE]
   text = text.replace(/\[SELFBOT(?:\s+([A-Z0-9_\s-]+))?\]\s+(?:Logged in as\s+)?([a-zA-Z0-9_.-]+)(?:\s*\([^)]*\))?:?/gi, (match, moduleName, username) => {
     const mod = moduleName ? moduleName.trim().replace(/-/g, ' ') : 'SELFBOT';
     const style = getModuleColorStyle(mod);
     return addBadge(`[${username} | ${mod}]`, style);
   });
 
-  // 2. Default System Badges with Solid Vivid Backgrounds
+  // 3. Default System Badges with Solid Vivid Backgrounds
   text = text.replace(/\[MAIN BOT\]/gi, () => addBadge('[MAIN BOT]', 'background-color: #0284c7; color: #ffffff; border: 1px solid rgba(125, 211, 252, 0.4);'));
   text = text.replace(/\[DATABASE BACKUP\]/gi, () => addBadge('[DATABASE BACKUP]', 'background-color: #9333ea; color: #ffffff; border: 1px solid rgba(216, 180, 254, 0.4);'));
   text = text.replace(/\[DATABASE\]/gi, () => addBadge('[DATABASE]', 'background-color: #d97706; color: #ffffff; border: 1px solid rgba(252, 211, 77, 0.4);'));
@@ -90,7 +104,7 @@ function formatLogMessage(rawMessage) {
   return text;
 }
 
-function renderLogsPage(initialLogs = []) {
+function renderLogsPage(initialLogs = [], selfbotTokenMap = {}) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -155,9 +169,9 @@ function renderLogsPage(initialLogs = []) {
 
         <div id="terminal-body" class="p-3 sm:p-5 pb-12 md:pb-16 flex-1 min-h-0 overflow-y-auto font-['JetBrains_Mono'] text-xs leading-relaxed text-[#c9d1d9] bg-[#0b0e14] selection:bg-brand/30 selection:text-white space-y-1">
           ${initialLogs.map(log => `
-            <div class="log-entry flex items-start gap-2 py-0.5 border-b border-white/[0.02]" data-raw="${escapeHtml(log.message)}">
+            <div class="log-entry flex items-start gap-2 py-0.5 border-b border-white/[0.02]" data-raw="${escapeHtml(getSearchableLogMessage(log.message, selfbotTokenMap))}">
               <span class="text-gray-500 font-mono text-[11px] shrink-0 select-none">[${log.timestamp}]</span>
-              <span class="${log.type === 'error' || log.type === 'stderr' ? 'text-rose-400' : 'text-gray-200'} font-mono leading-normal break-all">${formatLogMessage(log.message)}</span>
+              <span class="${log.type === 'error' || log.type === 'stderr' ? 'text-rose-400' : 'text-gray-200'} font-mono leading-normal break-all">${formatLogMessage(log.message, selfbotTokenMap)}</span>
             </div>
           `).join('')}
         </div>
@@ -175,6 +189,8 @@ function renderLogsPage(initialLogs = []) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
     }
+
+    const selfbotTokenMap = ${JSON.stringify(selfbotTokenMap).replace(/</g, '\\u003c')};
 
     function formatLogMessage(rawMessage) {
       let text = escapeHtml(rawMessage);
@@ -205,6 +221,12 @@ function renderLogsPage(initialLogs = []) {
         if (mod.indexOf('ERROR') !== -1 || mod.indexOf('FAIL') !== -1) return 'background-color: #e11d48; color: #ffffff; border: 1px solid rgba(253, 164, 175, 0.4);';
         return 'background-color: #059669; color: #ffffff; border: 1px solid rgba(110, 231, 183, 0.4);';
       }
+
+      text = text.replace(/\\[SELFBOT(?:\\s+([A-Z0-9_\\s-]+))?\\]\\s+Token(?:\\s+|:\\s*)([A-Z0-9]+)/gi, function(match, moduleName, tokenPrefix) {
+        const mod = moduleName ? moduleName.trim().replace(/-/g, ' ') : 'SELFBOT';
+        const username = selfbotTokenMap[tokenPrefix] || 'UNKNOWN SELFBOT';
+        return addBadge('[' + username + ' | ' + mod + ']', getModuleColorStyle(mod));
+      });
 
       // Convert Selfbot logs with Module + Username into dynamic solid badge: [USERNAME | MODULE]
       text = text.replace(/\\[SELFBOT(?:\\s+([A-Z0-9_\\s-]+))?\\]\\s+(?:Logged in as\\s+)?([a-zA-Z0-9_.-]+)(?:\\s*\\([^)]*\\))?:?/gi, function(match, moduleName, username) {
@@ -240,6 +262,13 @@ function renderLogsPage(initialLogs = []) {
       });
 
       return text;
+    }
+
+    function getSearchableLogMessage(rawMessage) {
+      const message = String(rawMessage || '');
+      const tokenMatch = message.match(/\[SELFBOT(?:\s+[A-Z0-9_\s-]+)?\]\s+Token(?:\s+|:\s*)([A-Z0-9]+)/i);
+      const username = tokenMatch ? selfbotTokenMap[tokenMatch[1]] : null;
+      return username ? message + ' ' + username : message;
     }
 
     const terminalBody = document.getElementById('terminal-body');
@@ -278,14 +307,14 @@ function renderLogsPage(initialLogs = []) {
         const log = JSON.parse(event.data);
         const div = document.createElement('div');
         div.className = 'log-entry flex items-start gap-2 py-0.5 border-b border-white/[0.02]';
-        div.setAttribute('data-raw', log.message || '');
+        div.setAttribute('data-raw', getSearchableLogMessage(log.message || ''));
 
         const colorClass = (log.type === 'error' || log.type === 'stderr') ? 'text-rose-400' : 'text-gray-200';
         div.innerHTML = '<span class="text-gray-500 font-mono text-[11px] shrink-0 select-none">[' + log.timestamp + ']</span><span class="' + colorClass + ' font-mono leading-normal break-all">' + formatLogMessage(log.message) + '</span>';
 
         if (currentFilter) {
           const query = currentFilter.toLowerCase().trim();
-          const rawText = (log.message || '').toLowerCase();
+          const rawText = getSearchableLogMessage(log.message || '').toLowerCase();
           if (!rawText.includes(query)) {
             div.style.display = 'none';
           }

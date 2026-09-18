@@ -2,10 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { getLogHistory, subscribeLogs } = require('../logBuffer');
 const { renderLogsPage } = require('../views/logsView');
+const db = require('../../database/db');
+
+function getSelfbotTokenMap() {
+  return Object.fromEntries(
+    db.getSelfbots()
+      .filter(selfbot => selfbot.token && selfbot.displayName)
+      .map(selfbot => [selfbot.token.substring(0, 10), selfbot.displayName])
+  );
+}
 
 router.get('/logs', (req, res) => {
   res.setHeader('Content-Type', 'text/html');
-  res.send(renderLogsPage(getLogHistory()));
+  res.send(renderLogsPage(getLogHistory(), getSelfbotTokenMap()));
 });
 
 router.get('/api/logs', (req, res) => {
