@@ -1,19 +1,36 @@
 const { Client: SelfClient, Options } = require('discord.js-selfbot-v13');
 const db = require('../database/db');
-const { GAMEBOT_ID } = require('../config/constants');
 const { applyPatches } = require('./selfbot/patches');
-const { parseFarmableInfo, extractButtons, getHumanDelay } = require('./selfbot/parsers');
-const { scheduleProfileCommand, clearProfileTimer, clearAllProfileTimers } = require('./selfbot/profileScheduler');
-const { executeAutoBuyFlow, isAutoBuying } = require('./selfbot/autoBuy');
+const { scheduleProfileCommand, clearProfileTimer } = require('./selfbot/profileScheduler');
 const { performThreadStartupCheck } = require('./selfbot/startupCheck');
 const { triggerThreadAutoRecovery } = require('./selfbot/autoRecovery');
+const { applyProxyToClient, resetRestAgentSingleton, parseProxyUrl } = require('./selfbot/proxyHelper');
+const {
+  activeSelfbots,
+  stopSelfbot,
+  stopAllSelfbots,
+  isSelfbotThreadValid
+} = require('./selfbot/selfbotRegistry');
+const {
+  createFarmingGuard,
+  setupPeriodicAutoBuyCheck,
+  createGamebotMessageHandler
+} = require('./selfbot/selfbotHandlers');
 
 // Apply prototype patches on Message
 applyPatches();
 
-const activeSelfbots = new Map();
-
-async function startSelfbot(token, threadId, userId, mainClient) {
+/**
+ * Initializes and starts a Discord selfbot client.
+ *
+ * @param {string} token
+ * @param {string} threadId
+ * @param {string} userId
+ * @param {Client} [mainClient]
+ * @param {string|null} [proxy] - Optional HTTP/HTTPS proxy URL (e.g. http://user:pass@host:port)
+ * @returns {Promise<Client|null>}
+ */
+async function startSelfbot(token, threadId, userId, mainClient, proxy) {
   if (activeSelfbots.has(token)) {
     try {
       activeSelfbots.get(token).destroy();
@@ -22,6 +39,17 @@ async function startSelfbot(token, threadId, userId, mainClient) {
   }
 
   clearProfileTimer(token);
+
+  // --- Proxy Setup ---
+  const resolvedProxy = proxy || db.getSelfbotByToken(token)?.proxy || null;
+  if (resolvedProxy) {
+    const { masked } = parseProxyUrl(resolvedProxy);
+    console.log(`[SELFBOT PROXY] Token ${token.substring(0, 10)}...: Using proxy ${masked}`);
+    // Reset REST agent singleton so this selfbot gets a fresh ProxyAgent
+    resetRestAgentSingleton();
+  } else {
+    console.warn(`[SELFBOT PROXY] Token ${token.substring(0, 10)}...: No proxy configured. Running on bare IP. Account ban risk assumed by user.`);
+  }
 
   const selfClient = new SelfClient({
     checkUpdate: false,
@@ -45,11 +73,30 @@ async function startSelfbot(token, threadId, userId, mainClient) {
     }
   });
 
+  // Apply proxy agents to client before login
+  if (resolvedProxy) {
+    applyProxyToClient(selfClient, resolvedProxy);
+  }
+
+  // Ensure session_id is always captured and cached on the selfbot client
+  if (selfClient.ws) {
+    selfClient.ws.on('raw', (packet) => {
+      if ((packet.t === 'READY' || packet.t === 'RESUMED') && packet.d?.session_id) {
+        selfClient._cachedSessionId = packet.d.session_id;
+      }
+    });
+  }
+
+  const { startFarmingIfNeeded } = createFarmingGuard(selfClient);
+
   selfClient.on('ready', async () => {
+    if (selfClient.sessionId) {
+      selfClient._cachedSessionId = selfClient.sessionId;
+    }
     console.log(`[SELFBOT] Logged in as ${selfClient.user.tag} (${selfClient.user.id})`);
 
     const dispName = selfClient.user.displayName || selfClient.user.globalName || selfClient.user.username || selfClient.user.tag;
-    db.addOrUpdateSelfbot(token, threadId, userId, dispName);
+    db.addOrUpdateSelfbot(token, threadId, userId, dispName, resolvedProxy);
 
     if (mainClient) {
       const { updateActivePanel, updateMainBotRPC } = require('./panelService');
@@ -68,43 +115,17 @@ async function startSelfbot(token, threadId, userId, mainClient) {
     scheduleProfileCommand(selfClient, token, threadId, activeSelfbots);
 
     // Periodic background check (every 15s) to automatically verify thread validity & block count
-    const autoBuyInterval = setInterval(async () => {
-      try {
-        if (!selfClient.isReady()) return;
-        const currentSbData = db.getSelfbotByToken(token);
-        const targetThreadId = currentSbData ? currentSbData.threadId : threadId;
-        if (!targetThreadId) {
-          triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
-          return;
-        }
-
-        const channel = await selfClient.channels.fetch(targetThreadId).catch(() => null);
-        if (!channel) {
-          // Thread ID is invalid or deleted. Trigger auto-recovery!
-          console.warn(`[SELFBOT PERIODIC CHECK] ${selfClient.user.tag}: Thread ID <#${targetThreadId}> is invalid or deleted!`);
-          triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
-          return;
-        }
-
-        if (isAutoBuying(selfClient.user ? selfClient.user.id : '')) return;
-
-        const messages = await channel.messages.fetch({ limit: 5 }).catch(() => null);
-        if (messages && messages.size > 0) {
-          const gamebotMsg = messages.find(m => m.author && m.author.id === GAMEBOT_ID);
-          if (gamebotMsg) {
-            const farmableInfo = parseFarmableInfo(gamebotMsg);
-            if (farmableInfo && typeof farmableInfo.blockCount === 'number' && farmableInfo.blockCount < 100) {
-              console.log(`[SELFBOT PERIODIC AUTO-BUY CHECK] ${selfClient.user.tag}: Block count is ${farmableInfo.blockCount} (< 100). Auto-triggering auto-buy...`);
-              executeAutoBuyFlow(selfClient, channel, gamebotMsg, farmableInfo).catch(() => null);
-            }
-          }
-        }
-      } catch (periodicErr) {
-        // Ignore background check errors
-      }
-    }, 15000);
-
-    selfClient._autoBuyInterval = autoBuyInterval;
+    selfClient._autoBuyInterval = setupPeriodicAutoBuyCheck(
+      selfClient,
+      token,
+      threadId,
+      userId,
+      mainClient,
+      activeSelfbots,
+      startFarmingIfNeeded,
+      performThreadStartupCheck,
+      triggerThreadAutoRecovery
+    );
 
     // Perform startup/redeploy check once
     try {
@@ -128,80 +149,11 @@ async function startSelfbot(token, threadId, userId, mainClient) {
     }
   });
 
-  // Runtime listener responds to AFK verification prompts AND auto-buys blocks if block count drops below 100
-  async function processGamebotMessage(rawMessage) {
-    try {
-      if (!rawMessage) return;
-
-      let message = rawMessage;
-      if (message.partial || !message.author) {
-        message = await rawMessage.fetch().catch(() => rawMessage);
-      }
-
-      const currentSbData = db.getSelfbotByToken(token);
-      const targetThreadId = currentSbData ? currentSbData.threadId : threadId;
-
-      const msgChannelId = message.channelId || (message.channel ? message.channel.id : null);
-      if (msgChannelId !== targetThreadId) {
-        return;
-      }
-
-      if (message.author && message.author.id !== GAMEBOT_ID) {
-        return;
-      }
-
-      const contentLower = (message.content || '').toLowerCase();
-      const mentionsSelf = selfClient.user && message.content && (message.content.includes(`<@${selfClient.user.id}>`) || message.content.includes(`<@!${selfClient.user.id}>`));
-      const hasAfkText = contentLower.includes('are you still there') || contentLower.includes('afk verification') || contentLower.includes('afk check');
-      const { keepFarmingButton } = extractButtons(message);
-
-      const isAfkPrompt = (hasAfkText || keepFarmingButton !== null) && (mentionsSelf || hasAfkText || keepFarmingButton !== null);
-
-      // 1. Respond if this message is an AFK verification prompt
-      if (isAfkPrompt) {
-        await new Promise(resolve => setTimeout(resolve, getHumanDelay()));
-
-        let clicked = false;
-        if (keepFarmingButton && !keepFarmingButton.disabled) {
-          const res = await message.clickButton(keepFarmingButton.customId || keepFarmingButton.id).catch(() => null);
-          if (res !== null) clicked = true;
-        } else if (message.components && message.components[0]?.components[0]) {
-          const firstBtn = message.components[0].components[0];
-          if (!firstBtn.disabled) {
-            const res = await message.clickButton(firstBtn.customId || firstBtn.id).catch(() => null);
-            if (res !== null) clicked = true;
-          }
-        }
-
-        if (clicked) {
-          console.log(`[SELFBOT] ${selfClient.user?.tag || 'Selfbot'} successfully resolved AFK prompt in thread ${targetThreadId}!`);
-          db.incrementResolved();
-
-          if (mainClient) {
-            try {
-              const { updateActivePanel, updateMainBotRPC } = require('./panelService');
-              updateActivePanel(mainClient);
-              updateMainBotRPC(mainClient);
-            } catch (e) {}
-          }
-        }
-        return;
-      }
-
-      // 2. Runtime check: Check if message contains farmable info with blocks < 100
-      const farmableInfo = parseFarmableInfo(message);
-      if (farmableInfo && typeof farmableInfo.blockCount === 'number' && farmableInfo.blockCount < 100 && !isAutoBuying(selfClient.user ? selfClient.user.id : '')) {
-        console.log(`[SELFBOT RUNTIME] Detected block count ${farmableInfo.blockCount} (< 100) on message update/create. Triggering auto-buy...`);
-        executeAutoBuyFlow(selfClient, message.channel, message, farmableInfo).catch(() => null);
-      }
-    } catch (err) {
-      console.error(`[SELFBOT MESSAGE HANDLER ERROR] ${selfClient.user?.tag || 'Selfbot'}:`, err);
-    }
-  }
-
-  selfClient.on('messageCreate', processGamebotMessage);
+  // Attach message handlers
+  const messageHandler = createGamebotMessageHandler(selfClient, token, threadId, mainClient, startFarmingIfNeeded);
+  selfClient.on('messageCreate', messageHandler);
   selfClient.on('messageUpdate', async (_, newMessage) => {
-    if (newMessage) processGamebotMessage(newMessage);
+    if (newMessage) messageHandler(newMessage);
   });
 
   try {
@@ -231,53 +183,17 @@ async function startSelfbot(token, threadId, userId, mainClient) {
   }
 }
 
-function stopSelfbot(token) {
-  clearProfileTimer(token);
-  if (activeSelfbots.has(token)) {
-    const sbClient = activeSelfbots.get(token);
-    if (sbClient && sbClient._autoBuyInterval) {
-      clearInterval(sbClient._autoBuyInterval);
-    }
-    try {
-      sbClient.destroy();
-    } catch (e) {}
-    activeSelfbots.delete(token);
-  }
-}
-
+/**
+ * Loads all saved selfbots from SQLite database and initializes them.
+ *
+ * @param {Client} mainClient
+ */
 async function loadAndStartAllSelfbots(mainClient) {
   const allSelfbots = db.getSelfbots();
   console.log(`[SELFBOT MANAGER] Initializing ${allSelfbots.length} selfbot(s)...`);
   for (const sb of allSelfbots) {
-    await startSelfbot(sb.token, sb.threadId, sb.userId, mainClient);
+    await startSelfbot(sb.token, sb.threadId, sb.userId, mainClient, sb.proxy || null);
   }
-}
-
-async function isSelfbotThreadValid(token, threadId) {
-  const selfClient = activeSelfbots.get(token);
-  if (!selfClient || !selfClient.isReady()) return false;
-
-  try {
-    const channel = await selfClient.channels.fetch(threadId).catch(() => null);
-    if (!channel) return false;
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function stopAllSelfbots() {
-  clearAllProfileTimers();
-
-  for (const [token, sbClient] of activeSelfbots.entries()) {
-    if (sbClient && sbClient._autoBuyInterval) {
-      clearInterval(sbClient._autoBuyInterval);
-    }
-    try {
-      sbClient.destroy();
-    } catch (e) {}
-  }
-  activeSelfbots.clear();
 }
 
 module.exports = {

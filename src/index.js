@@ -22,7 +22,7 @@ if (botToken && botToken !== 'your_bot_token_here') {
 } else {
   delete process.env.DISCORD_BOT_TOKEN;
 }
-const { Client, GatewayIntentBits, REST, Routes, Options } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, Options, Events } = require('discord.js');
 
 const { setCommand } = require('./commands/setCommand');
 const { resetCommand } = require('./commands/resetCommand');
@@ -36,10 +36,12 @@ const { updateActivePanel, updateMainBotRPC } = require('./services/panelService
 const { updateAllUserDmPanels } = require('./services/dmService');
 const { loadAndStartAllSelfbots } = require('./services/selfbotService');
 const { startDashboardServer } = require('./services/dashboardService');
+const { autoGrantRoleLicense } = require('./services/roleLicenseService');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.DirectMessages
   ],
@@ -64,7 +66,7 @@ const client = new Client({
   }
 });
 
-client.once('ready', async () => {
+client.once(Events.ClientReady, async () => {
   console.log(`[MAIN BOT] Logged in as ${client.user.tag}`);
 
   const db = require('./database/db');
@@ -92,6 +94,25 @@ client.once('ready', async () => {
 startDashboardServer(client);
 
 client.on('interactionCreate', handleInteraction);
+
+// Auto-grant permanent license to members who already have ROLE_ID when they join
+client.on('guildMemberAdd', (member) => {
+  try {
+    autoGrantRoleLicense(member, member.id);
+  } catch (e) {}
+});
+
+// Also auto-grant when a role is added to an existing member
+client.on('guildMemberUpdate', (oldMember, newMember) => {
+  try {
+    const roleId = (process.env.ROLE_ID || '').trim();
+    if (!roleId) return;
+    // Only act when the role was just added (not removed)
+    if (!oldMember.roles.cache.has(roleId) && newMember.roles.cache.has(roleId)) {
+      autoGrantRoleLicense(newMember, newMember.id);
+    }
+  } catch (e) {}
+});
 
 if (process.env.DISCORD_BOT_TOKEN) {
   client.login(process.env.DISCORD_BOT_TOKEN);

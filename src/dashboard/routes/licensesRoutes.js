@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../database/db');
 const { renderLicensesPage } = require('../views/licensesView');
+const { isUserRolePermanent } = require('../../services/roleLicenseService');
 
 async function resolveUserTag(discordClient, userId) {
   if (!userId) return 'N/A';
@@ -36,10 +37,12 @@ router.get('/api/licenses', async (req, res) => {
     const licensesList = await Promise.all(Object.entries(licensesMap).map(async ([userId, lic]) => {
       const userTag = await resolveUserTag(discordClient, userId);
       const grantedByTag = await resolveUserTag(discordClient, lic.grantedBy || 'Admin');
+      const isPermanent = await isUserRolePermanent(discordClient, userId, lic);
       return {
         userId,
         userTag,
         grantedByTag,
+        isPermanent,
         ...lic
       };
     }));

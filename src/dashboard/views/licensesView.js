@@ -1,6 +1,7 @@
 const db = require('../../database/db');
 const { renderSidebar } = require('./sidebarView');
 const { renderStatusBadge } = require('./components/statusBadgeComponent');
+const { isUserRolePermanent } = require('../../services/roleLicenseService');
 
 async function resolveUserTag(discordClient, userId) {
   if (!userId) return 'N/A';
@@ -38,10 +39,12 @@ async function renderLicensesPage(discordClient) {
   const licensesList = await Promise.all(Object.entries(licensesMap).map(async ([userId, lic]) => {
     const userTag = await resolveUserTag(discordClient, userId);
     const grantedByTag = await resolveUserTag(discordClient, lic.grantedBy || 'Admin');
+    const isPermanent = await isUserRolePermanent(discordClient, userId, lic);
     return {
       userId,
       userTag,
       grantedByTag,
+      isPermanent,
       ...lic
     };
   }));
@@ -88,19 +91,23 @@ async function renderLicensesPage(discordClient) {
             </thead>
             <tbody class="divide-y divide-white/5">
               ${licensesList.map(lic => {
-                const isExpired = lic.expiresAt < Date.now();
-                const hmsText = formatHMSDuration(lic.expiresAt);
+                const isPermanent = lic.isPermanent || lic.expiresAt === null || lic.durationDays === 0 || lic.grantedBy === 'AUTO_ROLE';
+                const isExpired = !isPermanent && lic.expiresAt < Date.now();
+                const hmsText = isPermanent ? 'Permanent' : formatHMSDuration(lic.expiresAt);
                 const grantedDate = lic.grantedAt ? new Date(lic.grantedAt).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }) + ' WIB' : 'N/A';
-                const expiresDate = lic.expiresAt ? new Date(lic.expiresAt).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }) + ' WIB' : 'N/A';
+                const expiresDate = isPermanent ? 'Permanent' : (lic.expiresAt ? new Date(lic.expiresAt).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }) + ' WIB' : 'N/A');
+                const statusBadge = isPermanent
+                  ? renderStatusBadge('Permanent', 'active')
+                  : renderStatusBadge(isExpired ? 'Expired' : 'Active', isExpired ? 'expired' : 'active');
                 return `
                 <tr class="hover:bg-white/[0.02] transition-colors">
                   <td class="p-4 px-5"><code class="font-mono bg-brand/10 border border-brand/20 text-brand font-bold px-2 py-1 rounded text-[11px]">${lic.userTag}</code></td>
-                  <td class="p-4 px-5"><strong class="text-white text-xs font-bold font-mono">${hmsText}</strong></td>
+                  <td class="p-4 px-5"><strong class="${isPermanent ? 'text-brand' : 'text-white'} text-xs font-bold font-mono">${hmsText}</strong></td>
                   <td class="p-4 px-5"><code class="font-mono bg-white/5 border border-white/10 text-gray-200 px-2 py-1 rounded text-[11px]">${lic.grantedByTag}</code></td>
                   <td class="p-4 px-5 text-gray-400 text-xs font-medium">${grantedDate}</td>
-                  <td class="p-4 px-5 text-gray-400 text-xs font-medium">${expiresDate}</td>
+                  <td class="p-4 px-5 ${isPermanent ? 'text-brand font-bold' : 'text-gray-400'} text-xs font-medium">${expiresDate}</td>
                   <td class="p-4 px-5">
-                    ${renderStatusBadge(isExpired ? 'Expired' : 'Active', isExpired ? 'expired' : 'active')}
+                    ${statusBadge}
                   </td>
                 </tr>
                 `;
@@ -143,22 +150,26 @@ async function renderLicensesPage(discordClient) {
             tableContainer.innerHTML = '<div class="p-9 text-center text-gray-500 text-sm font-medium">No granted licenses found.</div>';
           } else {
             const rowsHtml = data.licenses.map(lic => {
-              const isExpired = lic.expiresAt < Date.now();
-              const hmsText = formatHMSDurationClient(lic.expiresAt);
+              const isPermanent = lic.isPermanent || lic.expiresAt === null || lic.durationDays === 0 || lic.grantedBy === 'AUTO_ROLE';
+              const isExpired = !isPermanent && lic.expiresAt < Date.now();
+              const hmsText = isPermanent ? 'Permanent' : formatHMSDurationClient(lic.expiresAt);
               const grantedDate = lic.grantedAt ? new Date(lic.grantedAt).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }) + ' WIB' : 'N/A';
-              const expiresDate = lic.expiresAt ? new Date(lic.expiresAt).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }) + ' WIB' : 'N/A';
-              const badgeClass = isExpired ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-brand/10 border-brand/30 text-brand';
+              const expiresDate = isPermanent ? 'Permanent' : (lic.expiresAt ? new Date(lic.expiresAt).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }) + ' WIB' : 'N/A');
+              const badgeClass = isPermanent
+                ? 'bg-brand/10 border-brand/30 text-brand'
+                : (isExpired ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-brand/10 border-brand/30 text-brand');
+              const statusLabel = isPermanent ? 'Permanent' : (isExpired ? 'Expired' : 'Active');
 
               return \`
               <tr class="hover:bg-white/[0.02] transition-colors">
                 <td class="p-4 px-5"><code class="font-mono bg-brand/10 border border-brand/20 text-brand font-bold px-2 py-1 rounded text-[11px]">\${lic.userTag || ('@' + lic.userId)}</code></td>
-                <td class="p-4 px-5"><strong class="text-white text-xs font-bold font-mono">\${hmsText}</strong></td>
+                <td class="p-4 px-5"><strong class="\${isPermanent ? 'text-brand' : 'text-white'} text-xs font-bold font-mono">\${hmsText}</strong></td>
                 <td class="p-4 px-5"><code class="font-mono bg-white/5 border border-white/10 text-gray-200 px-2 py-1 rounded text-[11px]">\${lic.grantedByTag || ('@' + (lic.grantedBy || 'Admin'))}</code></td>
                 <td class="p-4 px-5 text-gray-400 text-xs font-medium">\${grantedDate}</td>
-                <td class="p-4 px-5 text-gray-400 text-xs font-medium">\${expiresDate}</td>
+                <td class="p-4 px-5 \${isPermanent ? 'text-brand font-bold' : 'text-gray-400'} text-xs font-medium">\${expiresDate}</td>
                 <td class="p-4 px-5">
                   <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border \${badgeClass}">
-                    \${isExpired ? 'Expired' : 'Active'}
+                    \${statusLabel}
                   </span>
                 </td>
               </tr>\`;

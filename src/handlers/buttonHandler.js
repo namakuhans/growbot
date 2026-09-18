@@ -2,10 +2,14 @@ const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = req
 
 const db = require('../database/db');
 const { MessageFlags } = require('discord.js');
+const { autoGrantRoleLicense } = require('../services/roleLicenseService');
 
 async function handleButtonInteraction(interaction) {
   // Main Panel Login Button
   if (interaction.customId === 'btn_login_selfbot') {
+    // Auto-grant permanent license if user has the configured ROLE_ID
+    autoGrantRoleLicense(interaction.member, interaction.user.id);
+
     // Check if user has access (whitelisted or active license)
     if (!db.hasUserAccess(interaction.user.id, interaction.member)) {
       await interaction.reply({
@@ -33,9 +37,17 @@ async function handleButtonInteraction(interaction) {
       .setStyle(TextInputStyle.Short)
       .setRequired(true);
 
+    const proxyInput = new TextInputBuilder()
+      .setCustomId('input_proxy')
+      .setLabel('Proxy (Opsional — Sangat Disarankan!)')
+      .setPlaceholder('http://user:pass@host:port  |  Kosongkan = IP asli server')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(false);
+
     modal.addComponents(
       new ActionRowBuilder().addComponents(tokenInput),
-      new ActionRowBuilder().addComponents(threadInput)
+      new ActionRowBuilder().addComponents(threadInput),
+      new ActionRowBuilder().addComponents(proxyInput)
     );
 
     await interaction.showModal(modal);

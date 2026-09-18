@@ -12,8 +12,11 @@ async function checkAndCleanExpiredLicenses(client) {
     let hasChanges = false;
 
     for (const [userId, license] of Object.entries(licenses)) {
-      // Check if user is whitelisted
+      // Skip whitelisted users
       if (db.isWhitelistedUser(userId, null)) continue;
+
+      // Skip permanent licenses (expiresAt === null means no expiry)
+      if (license.expiresAt === null) continue;
 
       if (license.expiresAt && license.expiresAt <= now) {
         console.log(`[LICENSE EXPIRED] License for user ${userId} has expired. Deleting selfbots...`);

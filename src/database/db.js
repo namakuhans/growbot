@@ -7,6 +7,7 @@ const {
   getSelfbotByToken,
   addOrUpdateSelfbot,
   updateSelfbotThread,
+  updateSelfbotProxy,
   removeSelfbot,
   resetSelfbotsTable
 } = require('./models/selfbotModel');
@@ -22,6 +23,7 @@ const {
   getLicenses,
   getUserLicense,
   setUserLicense,
+  setUserLicensePermanent,
   removeUserLicense
 } = require('./models/licenseModel');
 const {
@@ -50,6 +52,7 @@ module.exports = {
   getSelfbotByToken,
   addOrUpdateSelfbot,
   updateSelfbotThread,
+  updateSelfbotProxy,
   removeSelfbot,
   getUserDmPanels,
   getUserDmPanel,
@@ -59,6 +62,7 @@ module.exports = {
   getLicenses,
   getUserLicense,
   setUserLicense,
+  setUserLicensePermanent,
   removeUserLicense,
   addWhitelistedUser,
   removeWhitelistedUser,

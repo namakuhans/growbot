@@ -57,6 +57,12 @@ function applyPatches() {
         let flagsBitfield = this.flags ? (typeof this.flags.bitfield === 'number' ? this.flags.bitfield : this.flags) : 0;
         flagsBitfield |= 32768; // IS_COMPONENTS_V2
 
+        const sessionId = this.client.sessionId ||
+          this.client._cachedSessionId ||
+          this.client.ws?.shards?.first()?.sessionId ||
+          this.client.ws?.sessionId ||
+          '';
+
         const data = {
           type: InteractionTypes.MESSAGE_COMPONENT || 3,
           nonce,
@@ -64,7 +70,7 @@ function applyPatches() {
           channel_id: this.channelId,
           message_id: this.id,
           application_id: this.applicationId ?? GAMEBOT_ID,
-          session_id: this.client.sessionId,
+          session_id: sessionId,
           message_flags: flagsBitfield,
           data: {
             component_type: MessageComponentTypes.BUTTON || 2,
@@ -166,13 +172,19 @@ function applyPatches() {
         compType = MessageComponentTypes.STRING_SELECT || 3;
       }
 
+      const sessionId = this.client.sessionId ||
+        this.client._cachedSessionId ||
+        this.client.ws?.shards?.first()?.sessionId ||
+        this.client.ws?.sessionId ||
+        '';
+
       const data = {
         type: InteractionTypes.MESSAGE_COMPONENT || 3,
         guild_id: this.guildId,
         channel_id: this.channelId,
         message_id: this.id,
         application_id: this.applicationId ?? GAMEBOT_ID,
-        session_id: this.client.sessionId,
+        session_id: sessionId,
         message_flags: flagsBitfield,
         data: {
           component_type: compType,

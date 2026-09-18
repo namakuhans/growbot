@@ -8,7 +8,8 @@ const {
   ButtonBuilder,
   ButtonStyle,
   ThumbnailBuilder,
-  MessageFlags
+  MessageFlags,
+  ActivityType
 } = require('discord.js');
 const db = require('../database/db');
 const { BANNER_URL, getDynamicFooterText } = require('../config/constants');
@@ -97,7 +98,7 @@ function updateMainBotRPC(client) {
     const resolvedCount = db.getStats().totalResolved;
 
     client.user.setActivity(`${accountCount} akun | ${resolvedCount} resolved`, {
-      type: 3 // ActivityType.Watching = 3
+      type: ActivityType.Watching
     });
   } catch (err) {
     console.error('Failed to update Main Bot RPC:', err);

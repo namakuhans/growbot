@@ -49,8 +49,11 @@ function hasUserAccess(userId, member) {
 
   const { getUserLicense } = require('./licenseModel');
   const license = getUserLicense(userId);
-  if (license && license.expiresAt > Date.now()) {
-    return true;
+  if (license) {
+    // null expiresAt = permanent license
+    if (license.expiresAt === null || license.expiresAt > Date.now()) {
+      return true;
+    }
   }
 
   return false;

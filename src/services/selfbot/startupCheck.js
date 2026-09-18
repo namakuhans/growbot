@@ -1,7 +1,8 @@
 const db = require('../../database/db');
-const { GAMEBOT_ID } = require('../../config/constants');
+const { GAMEBOT_ID, APPLICATION_ID } = require('../../config/constants');
 const { parseFarmableInfo, findButton, extractButtons, getHumanDelay } = require('./parsers');
 const { executeAutoBuyFlow } = require('./autoBuy');
+const { startFarmingOnMainPanel, navigateToFarmingMenu } = require('./autoBuyHelpers');
 
 async function performThreadStartupCheck(selfClient, targetThreadId, mainClient) {
   try {
@@ -28,21 +29,22 @@ async function performThreadStartupCheck(selfClient, targetThreadId, mainClient)
       attempts++;
       console.log(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Polling thread <#${targetThreadId}> for Gamebot message with Farmable Info (Attempt ${attempts}/${maxAttempts})...`);
 
-      const messages = await channel.messages.fetch({ limit: 15 }).catch(() => null);
+      const messages = await channel.messages.fetch({ limit: 25, force: true }).catch(() => null);
       if (messages && messages.size > 0) {
-        const gamebotMsgs = messages.filter(m => m.author && m.author.id === GAMEBOT_ID);
-        if (gamebotMsgs.size > 0) {
-          for (const msg of gamebotMsgs.values()) {
-            const parsed = parseFarmableInfo(msg);
-            if (parsed) {
-              gamebotMsg = msg;
-              farmableInfo = parsed;
-              break;
-            }
+        // Priority 1: Check for message with valid farmableInfo
+        for (const msg of messages.values()) {
+          const parsed = parseFarmableInfo(msg);
+          if (parsed) {
+            gamebotMsg = msg;
+            farmableInfo = parsed;
+            break;
           }
-          if (!gamebotMsg) {
-            gamebotMsg = gamebotMsgs.first();
-          }
+        }
+
+        // Priority 2: Message from Gamebot / Application
+        if (!gamebotMsg) {
+          const isBotMessage = m => (m.author && (m.author.id === GAMEBOT_ID || m.author.id === APPLICATION_ID || m.author.bot)) || m.applicationId === APPLICATION_ID || m.applicationId === GAMEBOT_ID;
+          gamebotMsg = messages.find(m => isBotMessage(m) && m.components && m.components.length > 0) || messages.find(m => isBotMessage(m));
         }
       }
 
@@ -64,41 +66,37 @@ async function performThreadStartupCheck(selfClient, targetThreadId, mainClient)
       return;
     }
 
-    // Case B: Gamebot message found, but farmableInfo is null (e.g. menu is stuck/outdated)
+    // Case B: Gamebot message found, but farmableInfo is null (panel is on a sub-panel anywhere: Shop, Locks, Profile, Change, Settings, etc.)
     if (!farmableInfo && gamebotMsg) {
-      console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Could not parse Farmable Info from message in thread <#${targetThreadId}>. Clicking button to refresh status...`);
+      console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Panel in thread <#${targetThreadId}> is on a sub-panel. Attempting to unwind navigation back to Farming Menu...`);
 
-      const { toggleAutoFarmButton, farmButton } = extractButtons(gamebotMsg);
-      const profileBtn = findButton(gamebotMsg, ['profile']);
-      const changeBtn = findButton(gamebotMsg, ['change']);
-      const backBtn = findButton(gamebotMsg, ['back']);
+      // Acquire temporary auto-buy lock to prevent concurrent message handler interference
+      const { stateMap } = require('./autoBuyHelpers');
+      const clientKey = selfClient.user?.id || selfClient.token || 'default';
+      const hadLock = stateMap.has(clientKey);
+      if (!hadLock) stateMap.set(clientKey, { active: true, startTime: Date.now() });
 
-      let clickedBtn = null;
-
-      if (toggleAutoFarmButton && !toggleAutoFarmButton.disabled) {
-        clickedBtn = toggleAutoFarmButton;
-      } else if (farmButton && !farmButton.disabled) {
-        clickedBtn = farmButton;
-      } else if (profileBtn && !profileBtn.disabled) {
-        clickedBtn = profileBtn;
-      } else if (changeBtn && !changeBtn.disabled) {
-        clickedBtn = changeBtn;
-      } else if (backBtn && !backBtn.disabled) {
-        clickedBtn = backBtn;
-      } else if (gamebotMsg.components && gamebotMsg.components[0]?.components[0]) {
-        const first = gamebotMsg.components[0].components[0];
-        if (!first.disabled) clickedBtn = first;
+      try {
+        const navRes = await navigateToFarmingMenu(channel, selfClient, 6);
+        if (navRes && navRes.onFarmingMenu) {
+          gamebotMsg = navRes.message;
+          farmableInfo = navRes.farmableInfo || parseFarmableInfo(gamebotMsg);
+          console.log(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Successfully unwound back to Main Farming Menu (Blocks: ${farmableInfo?.blockCount ?? 'Unknown'}).`);
+        } else {
+          console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Unable to navigate to Farming Menu after unwinding. Triggering Thread Auto Recovery...`);
+          const { triggerThreadAutoRecovery } = require('./autoRecovery');
+          const allSelfbots = db.getSelfbots() || [];
+          const sbData = allSelfbots.find(s => s.threadId === targetThreadId) || db.getSelfbotByToken(selfClient.token);
+          const token = sbData ? sbData.token : (selfClient.token || '');
+          const userId = sbData ? sbData.userId : '';
+          const { activeSelfbots } = require('../selfbotService');
+          triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
+          return;
+        }
+      } finally {
+        // Release lock if we set it (allow auto-buy to proceed normally)
+        if (!hadLock) stateMap.delete(clientKey);
       }
-
-      if (clickedBtn) {
-        await new Promise(resolve => setTimeout(resolve, getHumanDelay()));
-        await gamebotMsg.clickButton(clickedBtn.customId || clickedBtn.id).catch(() => null);
-        console.log(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Clicked '${clickedBtn.label || clickedBtn.customId}' button to refresh Gamebot status panel.`);
-      }
-
-      console.log(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Re-checking thread <#${targetThreadId}> in 4 seconds...`);
-      setTimeout(() => performThreadStartupCheck(selfClient, targetThreadId, mainClient).catch(() => null), 4000);
-      return;
     }
 
     console.log(`[SELFBOT STARTUP] ${selfClient.user?.tag || 'Selfbot'} Farmable Info:`, farmableInfo);
@@ -143,38 +141,7 @@ async function performThreadStartupCheck(selfClient, targetThreadId, mainClient)
         await executeAutoBuyFlow(selfClient, channel, gamebotMsg, farmableInfo).catch(() => null);
       } else {
         // Standard initial farm check on startup/redeploy
-        const isToggleRed = toggleAutoFarmButton && (toggleAutoFarmButton.style === 4 || toggleAutoFarmButton.style === 'DANGER' || toggleAutoFarmButton.style === 'Danger');
-        const isFarmDisabled = farmButton && (farmButton.disabled === true || farmButton.disabled === 'true');
-
-        if (isToggleRed && isFarmDisabled) {
-          console.log(`[SELFBOT STARTUP] ${selfClient.user?.tag || 'Selfbot'} skipped clicking 'Toggle Auto Farm' & 'Farm' (Toggle is RED and Farm is DISABLED).`);
-        } else {
-          const isToggleGreen = toggleAutoFarmButton && (toggleAutoFarmButton.style === 3 || toggleAutoFarmButton.style === 'SUCCESS' || toggleAutoFarmButton.style === 'Success');
-          const isFarmEnabled = farmButton && !farmButton.disabled;
-
-          if (isToggleGreen && isFarmEnabled) {
-            // Click 'Toggle Auto Farm' first
-            await new Promise(resolve => setTimeout(resolve, getHumanDelay()));
-            await gamebotMsg.clickButton(toggleAutoFarmButton.customId || toggleAutoFarmButton.id).catch(() => null);
-            console.log(`[SELFBOT STARTUP] ${selfClient.user?.tag || 'Selfbot'} clicked 'Toggle Auto Farm' (GREEN) button in thread ${targetThreadId}`);
-
-            // Click 'Farm' second
-            await new Promise(resolve => setTimeout(resolve, getHumanDelay()));
-            await gamebotMsg.clickButton(farmButton.customId || farmButton.id).catch(() => null);
-            console.log(`[SELFBOT STARTUP] ${selfClient.user?.tag || 'Selfbot'} clicked 'Farm' (ENABLED) button in thread ${targetThreadId}`);
-          } else {
-            if (toggleAutoFarmButton && !toggleAutoFarmButton.disabled && !isToggleRed) {
-              await new Promise(resolve => setTimeout(resolve, getHumanDelay()));
-              await gamebotMsg.clickButton(toggleAutoFarmButton.customId || toggleAutoFarmButton.id).catch(() => null);
-              console.log(`[SELFBOT STARTUP] ${selfClient.user?.tag || 'Selfbot'} clicked 'Toggle Auto Farm' button in thread ${targetThreadId}`);
-            }
-            if (farmButton && !farmButton.disabled) {
-              await new Promise(resolve => setTimeout(resolve, getHumanDelay()));
-              await gamebotMsg.clickButton(farmButton.customId || farmButton.id).catch(() => null);
-              console.log(`[SELFBOT STARTUP] ${selfClient.user?.tag || 'Selfbot'} clicked 'Farm' button in thread ${targetThreadId}`);
-            }
-          }
-        }
+        await startFarmingOnMainPanel(channel, gamebotMsg, selfClient.user?.tag || 'Selfbot');
       }
     }
   } catch (err) {

@@ -2,6 +2,7 @@ const db = require('../../database/db');
 const { renderSidebar } = require('./sidebarView');
 const { renderStatCard } = require('./components/statCardComponent');
 const { renderStatusBadge } = require('./components/statusBadgeComponent');
+const { isUserRolePermanent } = require('../../services/roleLicenseService');
 
 function escapeHtml(str) {
   if (!str) return '';
@@ -47,16 +48,16 @@ async function renderDashboardPage(discordClient) {
 
     const userSelfbots = selfbots.filter(s => s.userId === userId);
     const license = licensesMap[userId];
-    const isWhitelisted = db.isWhitelistedUser(userId, null);
+    const isPermanent = await isUserRolePermanent(discordClient, userId, license);
     const hasDmPanel = !!userDmPanelsMap[userId];
 
     let licenseStatusText = 'None';
     let licenseStatusType = 'inactive';
-    if (isWhitelisted) {
+    if (isPermanent) {
       licenseStatusText = 'Permanent';
       licenseStatusType = 'active';
     } else if (license) {
-      if (license.expiresAt > Date.now()) {
+      if (license.expiresAt && license.expiresAt > Date.now()) {
         licenseStatusText = `Active (${license.durationDays}d)`;
         licenseStatusType = 'active';
       } else {

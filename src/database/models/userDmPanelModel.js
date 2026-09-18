@@ -11,7 +11,7 @@ function purgeInvalidUserDmPanels() {
     const envWhitelist = (process.env.WHITELISTED_USERS || '').split(',').map(s => s.trim()).filter(Boolean);
     const isEnvWhitelisted = envWhitelist.includes(uid);
     const lic = getUserLicense(uid);
-    const hasValidLicense = lic && lic.expiresAt > Date.now();
+    const hasValidLicense = lic && (lic.expiresAt === null || lic.durationDays === 0 || lic.expiresAt > Date.now());
 
     if (!isDbWhitelisted && !isEnvWhitelisted && !hasValidLicense) {
       sqliteDb.prepare('DELETE FROM user_dm_panels WHERE user_id = ?').run(uid);

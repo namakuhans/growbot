@@ -15,6 +15,7 @@ const db = require('../database/db');
 const { getDynamicFooterText } = require('../config/constants');
 
 const { isSelfbotThreadValid } = require('./selfbotService');
+const { formatProxyDisplay } = require('./selfbot/proxyHelper');
 
 async function createUserDMManagementComponents(user) {
   const userSelfbots = db.getSelfbotsByUser(user.id);
@@ -39,7 +40,7 @@ async function createUserDMManagementComponents(user) {
       const statusText = validThread ? 'Status: On🟢' : 'Status: Thread Invalid 🔴';
 
       const sbText = new TextDisplayBuilder()
-        .setContent(`Account: ${sb.displayName}\nThread: <#${sb.threadId}>\n${statusText}`);
+        .setContent(`**Account:** ${sb.displayName}\n**Thread:** <#${sb.threadId}>\n**Proxy:** ${formatProxyDisplay(sb.proxy)}\n**${statusText}**`);
 
       const changeThreadBtn = new ButtonBuilder()
         .setCustomId(`btn_change_thread_${sb.token}`)
