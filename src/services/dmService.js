@@ -23,9 +23,14 @@ async function createUserDMManagementComponents(user) {
   const headerText = new TextDisplayBuilder()
     .setContent('# ⚙️ Selfbot Management\nHere is the list of selfbot accounts linked to your Discord account.');
 
+  const userAvatar = user.displayAvatarURL({ dynamic: true }) || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  const headerSection = new SectionBuilder()
+    .addTextDisplayComponents(headerText)
+    .setThumbnailAccessory(new ThumbnailBuilder().setURL(userAvatar));
+
   const container = new ContainerBuilder()
     .setAccentColor(0x37FF00)
-    .addTextDisplayComponents(headerText);
+    .addSectionComponents(headerSection);
 
   if (userSelfbots.length === 0) {
     container.addSeparatorComponents(new SeparatorBuilder());
