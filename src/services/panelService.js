@@ -26,7 +26,7 @@ function createPanelComponents(client) {
 
   // Section 1: Title & System Overview
   const sec1Text = new TextDisplayBuilder()
-    .setContent('# GROWCORD AUTOMATED CONTROL PANEL\nWelcome to the official Growcord Automated Management System. This control center provides real-time monitoring and automated orchestration for your selfbot accounts, ensuring continuous anti-AFK verification, automated lock conversions (BGL / DL / WL), and intelligent stock replenishment (< 100 blocks).');
+    .setContent('# GROWCORD AUTOMATED CONTROL PANEL\nWelcome to the Growcord Automated Management System. This control center delivers centralized, real-time oversight of your selfbot accounts, with automated anti-AFK verification, lock conversion management (BGL / DL / WL), and intelligent stock replenishment when inventory falls below 100 blocks.');
 
   const sec1 = new SectionBuilder()
     .addTextDisplayComponents(sec1Text)

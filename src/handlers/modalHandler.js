@@ -45,7 +45,7 @@ async function handleModalSubmission(interaction) {
           '> ⚠️ *Segala risiko pemblokiran akun ditanggung oleh pengguna.*'
         )
         .setTimestamp();
-      await interaction.user.send({ embeds: [warnEmbed] }).catch(() => null);
+      await interaction.followUp({ embeds: [warnEmbed], ephemeral: true }).catch(() => null);
     }
 
     const selfClient = await startSelfbot(token, threadId, interaction.user.id, interaction.client, proxy);

@@ -39,7 +39,7 @@ async function handleButtonInteraction(interaction) {
 
     const proxyInput = new TextInputBuilder()
       .setCustomId('input_proxy')
-      .setLabel('Proxy (Opsional — Sangat Disarankan!)')
+      .setLabel('Proxy (Opsional | No proxy tanggung sendiri!)')
       .setPlaceholder('http://user:pass@host:port  |  Kosongkan = IP asli server')
       .setStyle(TextInputStyle.Short)
       .setRequired(false);
