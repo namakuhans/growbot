@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold;
+  }
+  .status-badge::before {
+    content: '';
+    @apply inline-block w-1.5 h-1.5 rounded-full;
+  }
+  .badge-active {
+    @apply bg-brand/10 border border-brand/30 text-brand;
+  }
+  .badge-active::before {
+    @apply bg-brand shadow-[0_0_8px_#37FF00];
+  }
+  .badge-expired {
+    @apply bg-red-500/10 border border-red-500/30 text-red-300;
+  }
+  .badge-expired::before {
+    @apply bg-red-500;
+  }
+  .badge-inactive {
+    @apply bg-gray-500/10 border border-gray-500/20 text-gray-400;
+  }
+  .badge-inactive::before {
+    @apply bg-gray-500;
+  }
+}

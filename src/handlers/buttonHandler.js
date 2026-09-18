@@ -1,0 +1,67 @@
+const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+
+const db = require('../database/db');
+const { MessageFlags } = require('discord.js');
+
+async function handleButtonInteraction(interaction) {
+  // Main Panel Login Button
+  if (interaction.customId === 'btn_login_selfbot') {
+    // Check if user has access (whitelisted or active license)
+    if (!db.hasUserAccess(interaction.user.id, interaction.member)) {
+      await interaction.reply({
+        content: '❌ You do not have an active license to use this tool. Please contact an administrator to get a license.',
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId('modal_login_selfbot')
+      .setTitle('Login Selfbot Discord');
+
+    const tokenInput = new TextInputBuilder()
+      .setCustomId('input_token')
+      .setLabel('Discord Selfbot Token')
+      .setPlaceholder('Masukkan token akun Discord selfbot Anda...')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    const threadInput = new TextInputBuilder()
+      .setCustomId('input_thread_id')
+      .setLabel('Thread ID (Target AFK)')
+      .setPlaceholder('Masukkan ID Thread Discord target...')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(tokenInput),
+      new ActionRowBuilder().addComponents(threadInput)
+    );
+
+    await interaction.showModal(modal);
+    return true;
+  }
+
+  // Change Thread Button from DM
+  if (interaction.customId.startsWith('btn_change_thread_')) {
+    const token = interaction.customId.replace('btn_change_thread_', '');
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_change_thread_${token}`)
+      .setTitle('Change Thread ID');
+
+    const threadInput = new TextInputBuilder()
+      .setCustomId('input_new_thread_id')
+      .setLabel('Thread ID Baru')
+      .setPlaceholder('Masukkan ID Thread Discord baru...')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(threadInput));
+    await interaction.showModal(modal);
+    return true;
+  }
+
+  return false;
+}
+
+module.exports = { handleButtonInteraction };
