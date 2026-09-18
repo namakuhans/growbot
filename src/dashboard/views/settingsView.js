@@ -46,11 +46,11 @@ function renderSettingsPage(msg = '', isError = false) {
         </form>
       </div>
 
-      <div class="bg-[#12141d]/60 border border-white/10 rounded-2xl p-7">
-        <div class="flex flex-col gap-6">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-white/10">
+      <div class="bg-[#12141d]/60 border border-white/10 rounded-2xl p-7 shadow-xl">
+        <div class="flex flex-col gap-4">
+          <div class="flex items-center gap-4">
             <div class="flex items-center gap-4">
-              <div class="w-12 h-12 rounded-lg bg-emerald-500/15 border border-emerald-400/20 text-emerald-300 flex items-center justify-center">
+              <div class="w-11 h-11 rounded-xl bg-brand/10 border border-brand/20 text-brand flex items-center justify-center shrink-0">
                 <svg width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="3" y="4" width="18" height="14" rx="1.5"/><path stroke-linecap="round" d="M8 21h8M12 18v3"/>
                 </svg>
@@ -60,26 +60,21 @@ function renderSettingsPage(msg = '', isError = false) {
                 <div class="text-sm text-gray-400">Running on your machine</div>
               </div>
             </div>
-            <div class="inline-flex items-center self-start sm:self-auto gap-1 p-1 rounded-lg bg-white/[0.06] border border-white/[0.06] text-xs font-semibold text-gray-400">
-              <span class="px-3 py-2 rounded-md">☼ Light</span>
-              <span class="px-3 py-2 rounded-md">☾ Dark</span>
-              <span class="px-3 py-2 rounded-md bg-white/10 text-white shadow-sm">◐ System</span>
-            </div>
           </div>
 
-          <div class="rounded-lg bg-[#0d0e12] border border-white/10 px-4 py-3.5">
+          <div class="rounded-xl bg-[#0a0b10]/80 border border-white/10 px-4 py-4">
             <div class="text-sm font-bold text-white">Database Location</div>
-            <code class="block mt-1 font-mono text-xs text-gray-400">~/growbot/database.sqlite</code>
+            <code class="block mt-1.5 font-mono text-xs text-gray-400">~/growbot/database.sqlite</code>
           </div>
 
-          <form action="/upload-backup" method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row gap-2">
-            <a href="/download-backup" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-extrabold text-gray-200 bg-white/[0.06] hover:bg-white/10 border border-white/10 rounded-lg transition-all">
+          <form action="/upload-backup" method="POST" enctype="multipart/form-data" class="flex flex-row flex-wrap gap-3 pt-4 border-t border-white/10">
+            <a href="/download-backup" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-extrabold text-[#0b0c10] bg-brand hover:bg-[#32ea00] border border-brand rounded-lg transition-all shadow-[0_4px_16px_rgba(55,255,0,0.18)]">
               <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
               </svg>
               <span>Download Backup</span>
             </a>
-            <label class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-extrabold text-gray-200 bg-white/[0.06] hover:bg-white/10 border border-white/10 rounded-lg transition-all cursor-pointer">
+            <label class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-extrabold text-brand bg-brand/10 hover:bg-brand/20 border border-brand/35 rounded-lg transition-all cursor-pointer">
               <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M5 16v1a3 3 0 003 3h8a3 3 0 003-3v-1"/>
               </svg>
@@ -87,7 +82,7 @@ function renderSettingsPage(msg = '', isError = false) {
               <input type="file" name="backupFile" accept=".sqlite,.db,application/x-sqlite3" required class="hidden" onchange="this.form.submit()" />
             </label>
           </form>
-          <div class="text-xs text-amber-300/90">Imported backups are applied after the application is restarted.</div>
+          <div class="text-xs text-gray-400">Imported backups are applied after the application is restarted.</div>
         </div>
       </div>
     </main>
