@@ -4,6 +4,24 @@ const { DatabaseSync } = require('node:sqlite');
 
 const DB_FILE = path.join(__dirname, '..', '..', 'database.sqlite');
 const BACKUPS_DIR = path.join(__dirname, '..', '..', 'backups');
+const RESTORE_FILE = path.join(__dirname, '..', '..', 'database.restore.sqlite');
+
+if (fs.existsSync(RESTORE_FILE)) {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      fs.copyFileSync(DB_FILE, path.join(BACKUPS_DIR, `database_backup_before_restore_${timestamp}.sqlite`));
+    }
+    for (const sidecar of [`${DB_FILE}-wal`, `${DB_FILE}-shm`]) {
+      if (fs.existsSync(sidecar)) fs.unlinkSync(sidecar);
+    }
+    fs.copyFileSync(RESTORE_FILE, DB_FILE);
+    fs.unlinkSync(RESTORE_FILE);
+  } catch (restoreErr) {
+    console.error('[DATABASE RESTORE ERROR]', restoreErr.message);
+  }
+}
 
 const sqliteDb = new DatabaseSync(DB_FILE);
 

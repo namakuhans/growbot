@@ -1,10 +1,6 @@
 const { renderSidebar } = require('./sidebarView');
 
 function renderSettingsPage(msg = '', isError = false) {
-  const port = process.env.DASHBOARD_PORT || '3000';
-  const host = process.env.DASHBOARD_HOST || '0.0.0.0';
-  const roleId = process.env.ROLE_ID || 'Not Configured';
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -50,55 +46,48 @@ function renderSettingsPage(msg = '', isError = false) {
         </form>
       </div>
 
-      <div class="bg-[#12141d]/60 border border-white/10 rounded-2xl p-7 mb-6">
-        <div class="text-base font-extrabold text-white mb-4">Server & System Parameters</div>
-
-        <div class="flex justify-between items-center py-3.5 border-b border-white/5">
-          <div>
-            <div class="text-sm font-semibold text-white">Dashboard Host</div>
-            <div class="text-xs text-gray-400 mt-0.5">Network interface binding address</div>
-          </div>
-          <code class="font-mono bg-white/5 px-2.5 py-1 rounded-md border border-white/10 text-xs text-brand">${host}</code>
-        </div>
-
-        <div class="flex justify-between items-center py-3.5 border-b border-white/5">
-          <div>
-            <div class="text-sm font-semibold text-white">Dashboard Port</div>
-            <div class="text-xs text-gray-400 mt-0.5">Active HTTP listening port</div>
-          </div>
-          <code class="font-mono bg-white/5 px-2.5 py-1 rounded-md border border-white/10 text-xs text-brand">${port}</code>
-        </div>
-
-        <div class="flex justify-between items-center py-3.5 border-b border-white/5">
-          <div>
-            <div class="text-sm font-semibold text-white">Whitelisted Role ID</div>
-            <div class="text-xs text-gray-400 mt-0.5">Discord Role required for bot command execution</div>
-          </div>
-          <code class="font-mono bg-white/5 px-2.5 py-1 rounded-md border border-white/10 text-xs text-brand">${roleId}</code>
-        </div>
-
-        <div class="flex justify-between items-center py-3.5 border-b-0">
-          <div>
-            <div class="text-sm font-semibold text-white">Database Storage Engine</div>
-            <div class="text-xs text-gray-400 mt-0.5">High-performance native SQLite storage driver</div>
-          </div>
-          <code class="font-mono bg-white/5 px-2.5 py-1 rounded-md border border-white/10 text-xs text-brand">node:sqlite (DatabaseSync)</code>
-        </div>
-      </div>
-
       <div class="bg-[#12141d]/60 border border-white/10 rounded-2xl p-7">
-        <div class="text-base font-extrabold text-white mb-4">Database Export & Backup</div>
-        <div class="flex justify-between items-center py-2">
-          <div>
-            <div class="text-sm font-semibold text-white">SQLite Backup Download</div>
-            <div class="text-xs text-gray-400 mt-0.5">Download a complete copy of the live database.sqlite file</div>
+        <div class="flex flex-col gap-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-white/10">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-lg bg-emerald-500/15 border border-emerald-400/20 text-emerald-300 flex items-center justify-center">
+                <svg width="25" height="25" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="14" rx="1.5"/><path stroke-linecap="round" d="M8 21h8M12 18v3"/>
+                </svg>
+              </div>
+              <div>
+                <div class="text-lg font-extrabold text-white">Local Mode</div>
+                <div class="text-sm text-gray-400">Running on your machine</div>
+              </div>
+            </div>
+            <div class="inline-flex items-center self-start sm:self-auto gap-1 p-1 rounded-lg bg-white/[0.06] border border-white/[0.06] text-xs font-semibold text-gray-400">
+              <span class="px-3 py-2 rounded-md">☼ Light</span>
+              <span class="px-3 py-2 rounded-md">☾ Dark</span>
+              <span class="px-3 py-2 rounded-md bg-white/10 text-white shadow-sm">◐ System</span>
+            </div>
           </div>
-          <a href="/download-db" class="inline-flex items-center gap-2.5 px-5 py-3 text-xs font-bold text-[#0b0c10] bg-brand hover:bg-[#32ea00] rounded-xl transition-all shadow-[0_4px_16px_rgba(55,255,0,0.2)]">
-            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            <span>Download Database</span>
-          </a>
+
+          <div class="rounded-lg bg-[#0d0e12] border border-white/10 px-4 py-3.5">
+            <div class="text-sm font-bold text-white">Database Location</div>
+            <code class="block mt-1 font-mono text-xs text-gray-400">~/growbot/database.sqlite</code>
+          </div>
+
+          <form action="/upload-backup" method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row gap-2">
+            <a href="/download-backup" class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-extrabold text-gray-200 bg-white/[0.06] hover:bg-white/10 border border-white/10 rounded-lg transition-all">
+              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              <span>Download Backup</span>
+            </a>
+            <label class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-extrabold text-gray-200 bg-white/[0.06] hover:bg-white/10 border border-white/10 rounded-lg transition-all cursor-pointer">
+              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4l4 4M5 16v1a3 3 0 003 3h8a3 3 0 003-3v-1"/>
+              </svg>
+              <span>Import Backup</span>
+              <input type="file" name="backupFile" accept=".sqlite,.db,application/x-sqlite3" required class="hidden" onchange="this.form.submit()" />
+            </label>
+          </form>
+          <div class="text-xs text-amber-300/90">Imported backups are applied after the application is restarted.</div>
         </div>
       </div>
     </main>

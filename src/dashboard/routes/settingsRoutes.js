@@ -3,9 +3,13 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
 const { renderSettingsPage } = require('../views/settingsView');
 
 const DB_FILE = path.join(__dirname, '..', '..', '..', 'database.sqlite');
+const BACKUPS_DIR = path.join(__dirname, '..', '..', '..', 'backups');
+const RESTORE_FILE = path.join(__dirname, '..', '..', '..', 'database.restore.sqlite');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 function getDashboardPassword() {
   return process.env.DASHBOARD_PASSWORD || 'farkhands21';
@@ -76,6 +80,33 @@ router.get('/download-db', (req, res) => {
     readStream.pipe(res);
   } else {
     res.status(404).send('Database file not found.');
+  }
+});
+
+router.get('/download-backup', (req, res) => {
+  try {
+    const backup = fs.readdirSync(BACKUPS_DIR)
+      .filter(file => file.startsWith('database_backup_') && file.endsWith('.sqlite'))
+      .sort()
+      .pop();
+
+    if (!backup) return res.status(404).send('No database backup found.');
+    res.download(path.join(BACKUPS_DIR, backup), backup);
+  } catch (err) {
+    res.status(500).send('Unable to download database backup.');
+  }
+});
+
+router.post('/upload-backup', upload.single('backupFile'), (req, res) => {
+  if (!req.file || !req.file.buffer || req.file.buffer.subarray(0, 16).toString() !== 'SQLite format 3\0') {
+    return res.redirect('/settings?msg=Invalid+SQLite+backup+file.&error=1');
+  }
+
+  try {
+    fs.writeFileSync(RESTORE_FILE, req.file.buffer);
+    return res.redirect('/settings?msg=Backup+uploaded.+Restart+the+application+to+apply+it.');
+  } catch (err) {
+    return res.redirect('/settings?msg=Failed+to+save+backup+file.&error=1');
   }
 });
 
