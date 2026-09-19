@@ -3,19 +3,17 @@ const { GAMEBOT_ID, APPLICATION_ID } = require('../../config/constants');
 const { parseFarmableInfo, findButton, extractButtons, getHumanDelay } = require('./parsers');
 const { executeAutoBuyFlow } = require('./autoBuy');
 const { startFarmingOnMainPanel, navigateToFarmingMenu } = require('./autoBuyHelpers');
+const { notifyInvalidThreadWebhook } = require('./webhookNotifier');
 
 async function performThreadStartupCheck(selfClient, targetThreadId, mainClient) {
   try {
     const channel = targetThreadId ? await selfClient.channels.fetch(targetThreadId).catch(() => null) : null;
     if (!channel) {
-      console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Thread <#${targetThreadId}> unavailable or empty. Triggering auto-recovery...`);
-      const { triggerThreadAutoRecovery } = require('./autoRecovery');
-      const allSelfbots = db.getSelfbots() || [];
-      const sbData = allSelfbots.find(s => s.threadId === targetThreadId) || db.getSelfbotByToken(selfClient.token);
-      const token = sbData ? sbData.token : (selfClient.token || '');
+      console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Thread <#${targetThreadId}> unavailable or empty.`);
+      const token = selfClient.token;
+      const sbData = db.getSelfbotByToken(token);
       const userId = sbData ? sbData.userId : '';
-      const { activeSelfbots } = require('../selfbotService');
-      triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
+      await notifyInvalidThreadWebhook(selfClient, token, targetThreadId, userId);
       return;
     }
 
@@ -53,16 +51,9 @@ async function performThreadStartupCheck(selfClient, targetThreadId, mainClient)
       }
     }
 
-    // Case A: No Gamebot message found in thread at all! Trigger Thread Auto Recovery!
+    // Case A: No Gamebot message found in thread at all!
     if (!gamebotMsg) {
-      console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: No Gamebot message found in thread <#${targetThreadId}> after ${maxAttempts} attempts. Triggering Thread Auto Recovery...`);
-      const { triggerThreadAutoRecovery } = require('./autoRecovery');
-      const allSelfbots = db.getSelfbots() || [];
-      const sbData = allSelfbots.find(s => s.threadId === targetThreadId) || db.getSelfbotByToken(selfClient.token);
-      const token = sbData ? sbData.token : (selfClient.token || '');
-      const userId = sbData ? sbData.userId : '';
-      const { activeSelfbots } = require('../selfbotService');
-      triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
+      console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: No Gamebot message found in thread <#${targetThreadId}> after ${maxAttempts} attempts.`);
       return;
     }
 
@@ -83,14 +74,7 @@ async function performThreadStartupCheck(selfClient, targetThreadId, mainClient)
           farmableInfo = navRes.farmableInfo || parseFarmableInfo(gamebotMsg);
           console.log(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Successfully unwound back to Main Farming Menu (Blocks: ${farmableInfo?.blockCount ?? 'Unknown'}).`);
         } else {
-          console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Unable to navigate to Farming Menu after unwinding. Triggering Thread Auto Recovery...`);
-          const { triggerThreadAutoRecovery } = require('./autoRecovery');
-          const allSelfbots = db.getSelfbots() || [];
-          const sbData = allSelfbots.find(s => s.threadId === targetThreadId) || db.getSelfbotByToken(selfClient.token);
-          const token = sbData ? sbData.token : (selfClient.token || '');
-          const userId = sbData ? sbData.userId : '';
-          const { activeSelfbots } = require('../selfbotService');
-          triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
+          console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user?.tag || 'Selfbot'}: Unable to navigate to Farming Menu after unwinding.`);
           return;
         }
       } finally {

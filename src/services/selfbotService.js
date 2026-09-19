@@ -3,7 +3,6 @@ const db = require('../database/db');
 const { applyPatches } = require('./selfbot/patches');
 const { scheduleProfileCommand, clearProfileTimer } = require('./selfbot/profileScheduler');
 const { performThreadStartupCheck } = require('./selfbot/startupCheck');
-const { triggerThreadAutoRecovery } = require('./selfbot/autoRecovery');
 const { applyProxyToClient, resetRestAgentSingleton, parseProxyUrl } = require('./selfbot/proxyHelper');
 const {
   activeSelfbots,
@@ -123,8 +122,7 @@ async function startSelfbot(token, threadId, userId, mainClient, proxy) {
       mainClient,
       activeSelfbots,
       startFarmingIfNeeded,
-      performThreadStartupCheck,
-      triggerThreadAutoRecovery
+      performThreadStartupCheck
     );
 
     // Perform startup/redeploy check once
@@ -133,13 +131,11 @@ async function startSelfbot(token, threadId, userId, mainClient, proxy) {
       const targetThreadId = currentSbData ? currentSbData.threadId : threadId;
 
       if (!targetThreadId) {
-        console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user.tag}: Selfbot has no initial Thread ID! Triggering auto-recovery...`);
-        triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
+        console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user.tag}: Selfbot has no initial Thread ID!`);
       } else {
         const channel = await selfClient.channels.fetch(targetThreadId).catch(() => null);
         if (!channel) {
-          console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user.tag}: Initial Thread ID <#${targetThreadId}> is invalid or deleted! Triggering auto-recovery...`);
-          triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
+          console.warn(`[SELFBOT STARTUP CHECK] ${selfClient.user.tag}: Initial Thread ID <#${targetThreadId}> is invalid or deleted!`);
         } else {
           await performThreadStartupCheck(selfClient, targetThreadId, mainClient);
         }
@@ -203,6 +199,5 @@ module.exports = {
   loadAndStartAllSelfbots,
   isSelfbotThreadValid,
   performThreadStartupCheck,
-  triggerThreadAutoRecovery,
   activeSelfbots
 };

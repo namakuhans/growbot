@@ -43,9 +43,10 @@ async function createUserDMManagementComponents(user) {
 
       const validThread = await isSelfbotThreadValid(sb.token, sb.threadId);
       const statusText = validThread ? 'Status: On🟢' : 'Status: Thread Invalid 🔴';
+      const webhookStatusText = sb.webhookUrl ? 'Webhook: Terpasang 🟢' : 'Webhook: Belum Diatur 🔴';
 
       const sbText = new TextDisplayBuilder()
-        .setContent(`**Account:** ${sb.displayName}\n**Thread:** <#${sb.threadId}>\n**Proxy:** ${formatProxyDisplay(sb.proxy)}\n**${statusText}**`);
+        .setContent(`**Account:** ${sb.displayName}\n**Thread:** <#${sb.threadId}>\n**Proxy:** ${formatProxyDisplay(sb.proxy)}\n**${webhookStatusText}**\n**${statusText}**`);
 
       const changeThreadBtn = new ButtonBuilder()
         .setCustomId(`btn_change_thread_${sb.token}`)
@@ -59,6 +60,26 @@ async function createUserDMManagementComponents(user) {
 
       container.addSectionComponents(sbSec);
     }
+
+    container.addSeparatorComponents(new SeparatorBuilder());
+
+    const setWebhookBtn = new ButtonBuilder()
+      .setCustomId('btn_set_webhook_url')
+      .setLabel('Set Webhook URL')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('🔔');
+
+    const userWebhook = userSelfbots.find(s => s.webhookUrl)?.webhookUrl;
+    const webhookDesc = userWebhook ? '`' + userWebhook.substring(0, 35) + '...`' : 'Belum diatur';
+
+    const webhookText = new TextDisplayBuilder()
+      .setContent(`**Global Webhook Notification**\nWebhook URL: ${webhookDesc}`);
+
+    const webhookSec = new SectionBuilder()
+      .addTextDisplayComponents(webhookText)
+      .setButtonAccessory(setWebhookBtn);
+
+    container.addSectionComponents(webhookSec);
 
     container.addSeparatorComponents(new SeparatorBuilder());
 

@@ -8,6 +8,8 @@ const {
   addOrUpdateSelfbot,
   updateSelfbotThread,
   updateSelfbotProxy,
+  updateSelfbotWebhook,
+  updateUserSelfbotsWebhook,
   removeSelfbot,
   resetSelfbotsTable
 } = require('./models/selfbotModel');
@@ -53,6 +55,8 @@ module.exports = {
   addOrUpdateSelfbot,
   updateSelfbotThread,
   updateSelfbotProxy,
+  updateSelfbotWebhook,
+  updateUserSelfbotsWebhook,
   removeSelfbot,
   getUserDmPanels,
   getUserDmPanel,
