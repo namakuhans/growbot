@@ -78,6 +78,7 @@ sqliteDb.prepare(`INSERT OR IGNORE INTO stats (id, total_resolved, last_resolve)
 
 // Schema migrations — idempotent, safe to run on every startup
 try { sqliteDb.exec('ALTER TABLE selfbots ADD COLUMN proxy TEXT'); } catch (e) { /* column already exists */ }
+try { sqliteDb.exec('ALTER TABLE selfbots ADD COLUMN webhook_url TEXT'); } catch (e) { /* column already exists */ }
 
 console.log('[DATABASE] Strictly using native node:sqlite (DatabaseSync) storage driver.');
 

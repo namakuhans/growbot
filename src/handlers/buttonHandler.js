@@ -73,6 +73,28 @@ async function handleButtonInteraction(interaction) {
     return true;
   }
 
+  // Set Webhook URL Button from DM Panel
+  if (interaction.customId === 'btn_set_webhook_url') {
+    const userSelfbots = db.getSelfbotsByUser(interaction.user.id);
+    const existingWebhook = userSelfbots.find(s => s.webhookUrl)?.webhookUrl || '';
+
+    const modal = new ModalBuilder()
+      .setCustomId('modal_set_webhook_url')
+      .setTitle('Set Webhook URL Notifikasi');
+
+    const webhookInput = new TextInputBuilder()
+      .setCustomId('input_webhook_url')
+      .setLabel('Discord Webhook URL')
+      .setPlaceholder('https://discord.com/api/webhooks/... (Kosongkan = Hapus)')
+      .setValue(existingWebhook)
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(false);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(webhookInput));
+    await interaction.showModal(modal);
+    return true;
+  }
+
   return false;
 }
 

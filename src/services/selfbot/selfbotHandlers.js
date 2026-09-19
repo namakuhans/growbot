@@ -3,6 +3,7 @@ const { GAMEBOT_ID, APPLICATION_ID } = require('../../config/constants');
 const { parseFarmableInfo, extractButtons, getHumanDelay } = require('./parsers');
 const { executeAutoBuyFlow, isAutoBuying } = require('./autoBuy');
 const { startFarmingOnMainPanel, navigateToFarmingMenu } = require('./autoBuyHelpers');
+const { notifyInvalidThreadWebhook } = require('./webhookNotifier');
 
 /**
  * Creates a farming guard closure for a selfbot client to prevent concurrent farm triggers.
@@ -59,7 +60,6 @@ function createFarmingGuard(selfClient) {
  * @param {Map} activeSelfbots
  * @param {Function} startFarmingIfNeeded
  * @param {Function} performThreadStartupCheck
- * @param {Function} triggerThreadAutoRecovery
  * @returns {NodeJS.Timeout}
  */
 function setupPeriodicAutoBuyCheck(
@@ -70,8 +70,7 @@ function setupPeriodicAutoBuyCheck(
   mainClient,
   activeSelfbots,
   startFarmingIfNeeded,
-  performThreadStartupCheck,
-  triggerThreadAutoRecovery
+  performThreadStartupCheck
 ) {
   return setInterval(async () => {
     try {
@@ -79,15 +78,14 @@ function setupPeriodicAutoBuyCheck(
       const currentSbData = db.getSelfbotByToken(token);
       const targetThreadId = currentSbData ? currentSbData.threadId : threadId;
       if (!targetThreadId) {
-        triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
         return;
       }
 
       const channel = await selfClient.channels.fetch(targetThreadId).catch(() => null);
       if (!channel) {
-        // Thread ID is invalid or deleted. Trigger auto-recovery!
+        // Thread ID is invalid or deleted
         console.warn(`[SELFBOT PERIODIC CHECK] ${selfClient.user.tag}: Thread ID <#${targetThreadId}> is invalid or deleted!`);
-        triggerThreadAutoRecovery(selfClient, token, userId, mainClient, activeSelfbots, performThreadStartupCheck).catch(() => null);
+        await notifyInvalidThreadWebhook(selfClient, token, targetThreadId, userId);
         return;
       }
 

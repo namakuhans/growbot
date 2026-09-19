@@ -80,6 +80,10 @@ async function handleModalSubmission(interaction) {
     const updated = db.updateSelfbotThread(token, newThreadId);
 
     if (updated) {
+      // Reset invalid thread notification flag for this token since thread ID has been updated
+      const { resetInvalidThreadNotification } = require('../services/selfbot/webhookNotifier');
+      resetInvalidThreadNotification(token);
+
       // Re-start / re-initialize selfbot — proxy is read from DB automatically via resolvedProxy fallback
       const existingProxy = updated.proxy || null;
       startSelfbot(token, newThreadId, interaction.user.id, interaction.client, existingProxy).catch(() => null);
@@ -89,6 +93,37 @@ async function handleModalSubmission(interaction) {
       await interaction.editReply({ content: `✅ Thread ID berhasil diperbarui menjadi \`${newThreadId}\`! Selfbot sedang memeriksa status thread baru.` });
     } else {
       await interaction.editReply({ content: '❌ Akun selfbot tidak ditemukan.' });
+    }
+    return true;
+  }
+
+  // Set Webhook URL Modal Submit
+  if (interaction.customId === 'modal_set_webhook_url') {
+    await interaction.deferReply({ ephemeral: true });
+    const rawWebhook = interaction.fields.getTextInputValue('input_webhook_url').trim();
+
+    let webhookUrl = null;
+    if (rawWebhook) {
+      // Validate webhook URL format
+      const isDiscordWebhook = /^https:\/\/(discord|canary\.discord)\.com\/api\/webhooks\/\d+\/[\w-]+$/i.test(rawWebhook);
+      if (!isDiscordWebhook) {
+        await interaction.editReply({
+          content: '❌ Format Webhook URL tidak valid. Webhook URL harus berupa URL Webhook Discord resmi (contoh: `https://discord.com/api/webhooks/...`).'
+        });
+        return true;
+      }
+      webhookUrl = rawWebhook;
+    }
+
+    db.updateUserSelfbotsWebhook(interaction.user.id, webhookUrl);
+
+    const { sendOrUpdateUserDM } = require('../services/dmService');
+    await sendOrUpdateUserDM(interaction.user, interaction.client);
+
+    if (webhookUrl) {
+      await interaction.editReply({ content: '✅ Webhook URL berhasil diperbarui untuk seluruh akun selfbot Anda!' });
+    } else {
+      await interaction.editReply({ content: '🗑️ Webhook URL telah dihapus. Notifikasi webhook dinonaktifkan.' });
     }
     return true;
   }
